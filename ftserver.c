@@ -13,32 +13,33 @@ Program Description: ftserver.c is the server side of the file transfer system
 #include <netinet/in.h>
 #include <netdb.h>
 #include <time.h>
+#include <dirent.h>
 
 #define SIZE 75000
 
 void error(const char *msg, int exitVal);
+void getDirectory();
+int setupSocket(int portNumber, char *hostname);
 
 int main(int argc, char *argv[])
 {
-    int portNumber, textLength, keyLength, socketFD, newsocketFD, bytesSent, charsText, charsKey, pid, r, checkSockSending = 1, checkSockRecieving = 0;
+    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv;
     struct sockaddr_in serverAddress;
-    struct sockaddr_in clientAddress;
-    char stringText[SIZE];
-    char stringKey[SIZE];
-    char cipherArray[SIZE];
-    char readBuffer[512];
-    socklen_t cliLength;
+    char commandBuffer[SIZE];
+    char portBuffer[SIZE];
+    char ipBuffer[SIZE];
+    char *confirm = "OK";
+    char *test = "TEST";
 
-    memset(stringText, '\0', SIZE);  // Fill arrays with null terminators and clear garbage
-    memset(stringKey, '\0', SIZE);   // Fill arrays with null terminators and clear garbage
-    memset(cipherArray, '\0', SIZE); // Fill arrays with null terminators and clear garbage
-    memset(readBuffer, '\0', 512);   // Fill arrays with null terminators and clear garbage
+    memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
+    memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
+    memset(ipBuffer, '\0', SIZE);      // Fill arrays with null terminators and clear garbage
 
     /* Check for the correct number of arguments */
     if (argc < 2)
         error("ERROR: Incorrect number of arguments.\nSYNTAX: otp_enc_d port", 1);
 
-    /* Port and Socket Setup */
+    //Port and Socket Setup
     socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
     portNumber = atoi(argv[1]);                 // Get the port number
     if (socketFD < 0)
@@ -53,25 +54,61 @@ int main(int argc, char *argv[])
     { // Check for bind error
         error("error: server couldn't bind", 0);
     }
-    listen(socketFD, 5);               // 5 concurrent connections
-    cliLength = sizeof(clientAddress); // Set the length of the client address
+    listen(socketFD, 5); // 5 concurrent connections
 
     /* Listening Loop */
     while (1)
     {
-        newsocketFD = accept(socketFD, (struct sockaddr *)&clientAddress, &cliLength); // Creates a new connected socket, returns it's new file descriptor
+        newsocketFD = accept(socketFD, NULL, NULL); // Creates a new connected socket, returns it's new file descriptor
         if (newsocketFD < 0)
-        { // Error if the socket couldn't be created
+        {
             error("error: server couldn't set up socket on accept", 1);
         }
-        pid = fork(); // Create child
+        pid = fork();
         if (pid < 0)
         {
             error("error: fork error", 1);
         }
         else if (pid == 0)
-        { // I am the child
-            printf("AYO");
+        {
+
+            //Receive the command
+            memset(commandBuffer, '\0', SIZE);
+            bytesRecv = recv(newsocketFD, commandBuffer, SIZE - 1, 0);
+            if (bytesRecv < 0)
+            {
+                error("error: server can't read from the socket", 1);
+            }
+            send(newsocketFD, confirm, strlen(confirm), 0);
+
+            //Receive the port number for data transfer
+            memset(portBuffer, '\0', SIZE);
+            bytesRecv = recv(newsocketFD, portBuffer, SIZE - 1, 0);
+            if (bytesRecv < 0)
+            {
+                error("error: server can't read from the socket", 1);
+            }
+            send(newsocketFD, confirm, strlen(confirm), 0);
+
+            //Receive the client's IP address
+            memset(ipBuffer, '\0', SIZE);
+            bytesRecv = recv(newsocketFD, ipBuffer, SIZE - 1, 0);
+            if (bytesRecv < 0)
+            {
+                error("error: server can't read from the socket", 1);
+            }
+            send(newsocketFD, confirm, strlen(confirm), 0);
+
+            printf("%s\n", commandBuffer);
+            printf("%d\n", atoi(portBuffer));
+            printf("%s\n", ipBuffer);
+
+            // Setup data socket
+            datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
+            send(datasockFD, test, strlen(test), 0);
+
+            //getDirectory();
+
             close(newsocketFD); // Close the socket
             close(socketFD);    // Close the socket
             exit(0);            // Child dies
@@ -97,4 +134,52 @@ void error(const char *msg, int exitVal)
 {
     fprintf(stderr, "%s\n", msg);
     exit(exitVal);
+}
+
+void getDirectory()
+{
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
+            {
+                printf("%s\n", dir->d_name);
+            }
+        }
+        closedir(d);
+    }
+}
+
+int setupSocket(int portNumber, char *hostname)
+{
+    int socketFD;                                     // Socket file descriptor
+    struct sockaddr_in serverAddress;                 // Server address struct
+    struct hostent *server = gethostbyname(hostname); // Get host IP
+    if (server == NULL)
+        error("error: host was not found", 1);
+
+    /* Open the socket */
+    socketFD = socket(AF_INET, SOCK_STREAM, 0); // Returns a socket descriptor that we can use in later system calls. returns -1 on error.
+    if (socketFD < 0)
+    {
+        error("error: opening socket", 1);
+    }
+
+    /* Set up server address struct */
+    memset((char *)&serverAddress, '\0', sizeof(serverAddress));                             // Clear out the address struct
+    serverAddress.sin_family = AF_INET;                                                      // Create a network-capable socket
+    bcopy((char *)server->h_addr, (char *)&serverAddress.sin_addr.s_addr, server->h_length); // Copy serv_addr ip into server->h_addr
+    serverAddress.sin_port = htons(portNumber);                                              // Store the port number
+
+    /* Connect to server */
+    if (connect(socketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+    {
+        error("error: connecting to socket", 1); // Connection error
+    }
+
+    return socketFD;
 }

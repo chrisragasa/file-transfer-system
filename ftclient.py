@@ -39,7 +39,7 @@ def connect(host, port):
 
 
 def send_msg(sock, message):
-    """Send string to a socket
+    """Send message to a socket
    Args:
         sock: socket used to transmit the message
         message: message to be transmitted
@@ -59,6 +59,19 @@ def is_valid_command(command):
 
 # def send_command(sock, command, data_port):
 
+def get_IP():
+    """Get the local IP address
+   Args:
+        Local IP address
+   Resources:
+    https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    hostname = s.getsockname()[0]
+    s.close()
+    return hostname
+
 
 def main():
     # Validate correct usage
@@ -70,19 +83,45 @@ def main():
     command = sys.argv[3]
 
     if len(sys.argv) == 5:
-        data_port = int(sys.argv[4])
+        data_port = sys.argv[4]
 
     elif len(sys.argv) == 6:
         filename = sys.argv[4]
-        data_port = int(sys.argv[5])
+        data_port = sys.argv[5]
 
     # Validate correct command
     if not is_valid_command(command):
         error("error: the only commands accepted are -g or -l", 1)
 
     # Connect to the server socket
-    server_socket = connect(host, port)
-    send_msg(server_socket, "testing")
+    sock = connect(host, port)
+
+    # Send the command
+    send_msg(sock, command)
+    response = sock.recv(MAX_LENGTH)
+    print(response)
+
+    # Send the port number
+    send_msg(sock, data_port)
+    response = sock.recv(MAX_LENGTH)
+    print(response)
+
+    # Send client IP address
+    send_msg(sock, get_IP())
+    response = sock.recv(MAX_LENGTH)
+    print(response)
+
+    # Create socket (SOCK_STREAM means a TCP socket)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", int(data_port)))
+    s.listen(1)
+
+    # accept() returns conn (socket object) and addr (address bound to socket on other end of conn)
+    conn, addr = s.accept()
+    print("Established connection with " + str(addr) + "...")
+    testing = conn.recv(MAX_LENGTH)
+    print(testing)
+    conn.close()
 
 
 if __name__ == "__main__":
