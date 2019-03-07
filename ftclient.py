@@ -169,6 +169,7 @@ def main():
 
     # print the remote directory
     if command == "-l":
+        print("Directory structure from " + str(addr) + ":\n")
         print(data)
 
     # transfer the file from remote directory to local directory

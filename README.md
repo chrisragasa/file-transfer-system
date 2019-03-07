@@ -58,6 +58,8 @@ flip1 ~/file-transfer-system $ ./ftserver 3555
 flip2 ~/test-dir $ python3 ftclient.py flip1.engr.oregonstate.edu 3555 -l 8555
 Connected to flip1.engr.oregonstate.edu on port 3555...
 Data transfer initiated on ('128.193.54.168', 41184)...
+Directory structure from ('128.193.54.168', 41184):
+
 .
 ..
 README.md
