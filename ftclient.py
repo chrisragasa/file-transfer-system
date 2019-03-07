@@ -36,7 +36,7 @@ def connect(host, port):
         s.connect((host, port))
     except:
         error("error: error connecting to port " + str(port), 1)
-    print("Connected to " + str(host) + " on port " + str(port))
+    print("Connected to " + str(host) + " on port " + str(port) + "...")
     return s
 
 
@@ -116,35 +116,39 @@ def main():
     # Connect to the server socket
     sock = connect(host, port)
 
-    # Send the command
+    # send the command
     send_msg(sock, command)
     response = sock.recv(MAX_LENGTH)
-    print(response)
+    if not response:
+        error("error: no ack received", 1)
 
-    # Send the port number
+    # send the port number
     send_msg(sock, data_port)
     response = sock.recv(MAX_LENGTH)
-    print(response)
+    if not response:
+        error("error: no ack received", 1)
 
-    # Send client IP address
+    # send client IP address
     send_msg(sock, get_IP())
     response = sock.recv(MAX_LENGTH)
-    print(response)
+    if not response:
+        error("error: no ack received", 1)
 
-    # Send the filename
+    # send the filename
     if command == "-g" and filename:
         send_msg(sock, filename)
         response = sock.recv(MAX_LENGTH)
-        print(response)
+        if not response:
+            error("error: no ack received", 1)
 
-    # Create socket (SOCK_STREAM means a TCP socket)
+    # create socket (SOCK_STREAM means a TCP socket)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("", int(data_port)))
     s.listen(1)
 
     # accept() returns conn (socket object) and addr (address bound to socket on other end of conn)
     conn, addr = s.accept()
-    print("Established connection with " + str(addr) + "...")
+    print("Data transfer initiated on " + str(addr) + "...")
     data = ""
     while True:
         # reads data chunk from the socket in batches using method recv() until it returns an empty string
@@ -176,6 +180,7 @@ def main():
                 fh = open(filename, "w")
                 fh.write(data)
                 fh.close()
+            print("Transfer complete.")
 
     conn.close()
 

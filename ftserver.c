@@ -39,7 +39,6 @@ int main(int argc, char *argv[])
     char fileStr[LARGE_SIZE];
 
     char *confirm = "OK";
-    char *invalidFile = "Invalid File";
 
     memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
     memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
@@ -50,14 +49,14 @@ int main(int argc, char *argv[])
 
     /* Check for the correct number of arguments */
     if (argc < 2)
-        error("ERROR: Incorrect number of arguments.\nSYNTAX: otp_enc_d port", 1);
+        error("error: Incorrect number of arguments.\nSYNTAX: otp_enc_d port", 1);
 
     //Port and Socket Setup
     socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
     portNumber = atoi(argv[1]);                 // Get the port number
     if (socketFD < 0)
     { // Check for socket creation error
-        error("ERROR: server couldn't open the socket", 1);
+        error("error: server couldn't open the socket", 1);
     }
     memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
     serverAddress.sin_family = AF_INET;                          // Create a network-capable socket
@@ -123,12 +122,12 @@ int main(int argc, char *argv[])
                 send(newsocketFD, confirm, strlen(confirm), 0);
             }
 
-            printf("command buffer:%s\n", commandBuffer);
-            printf("port buffer:%d\n", atoi(portBuffer));
-            printf("ip buffer:%s\n", ipBuffer);
-            printf("file buffer:%s\n", fileBuffer);
-
-            printf("command:%d\n", getCommand(commandBuffer));
+            printf("Data received from client...\n");
+            printf("    IP buffer: %s\n", ipBuffer);
+            printf("    port buffer: %d\n", atoi(portBuffer));
+            printf("    file buffer: %s\n", fileBuffer);
+            printf("    command buffer: %s\n", commandBuffer);
+            printf("    command code: %d\n", getCommand(commandBuffer));
 
             // Setup data socket
             datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
@@ -145,7 +144,7 @@ int main(int argc, char *argv[])
                 bytesSent = bytesSent + charsText; // Keep track of the bytes sent
                 if (charsText < 0)
                 {
-                    error("ERROR: server can't send encryption to socket", 1);
+                    error("error: server can't send encryption to socket", 1);
                 }
                 // While the total amount of bytes sent does not equal the size of the message
                 while (bytesSent < LARGE_SIZE - 1)
@@ -159,41 +158,40 @@ int main(int argc, char *argv[])
                 // Check if the file exists
                 if (isValidFile(fileBuffer))
                 {
-                    // Copy file contents into a string
+                    // Read file contents into a string
                     readFile(fileBuffer, fileStr);
-                    // Send the file to the client
+
                     // Send to the client
-                    bytesSent = 0; // Keep track of the bytes sent
+                    bytesSent = 0;
                     charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
-                    bytesSent = bytesSent + charsText; // Keep track of the bytes sent
+                    bytesSent = bytesSent + charsText;
                     if (charsText < 0)
                     {
-                        error("ERROR: server can't send encryption to socket", 1);
+                        error("error: server can't send encryption to socket", 1);
                     }
-                    // While the total amount of bytes sent does not equal the size of the message
                     while (bytesSent < LARGE_SIZE - 1)
                     {
                         charsText = send(datasockFD, &fileStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                        bytesSent = bytesSent + charsText;                                                  // Keep track of the bytes sent
+                        bytesSent = bytesSent + charsText;
                     }
                 }
-                // Otherwise, send error to client
+                // Otherwise, send file not found error to client
                 else
                 {
                     strcpy(fileStr, "File not found.");
+
                     // Send to the client
-                    bytesSent = 0; // Keep track of the bytes sent
+                    bytesSent = 0;
                     charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
-                    bytesSent = bytesSent + charsText; // Keep track of the bytes sent
+                    bytesSent = bytesSent + charsText;
                     if (charsText < 0)
                     {
-                        error("ERROR: server can't send encryption to socket", 1);
+                        error("error: server can't send encryption to socket", 1);
                     }
-                    // While the total amount of bytes sent does not equal the size of the message
                     while (bytesSent < LARGE_SIZE - 1)
                     {
                         charsText = send(datasockFD, &fileStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                        bytesSent = bytesSent + charsText;                                            // Keep track of the bytes sent
+                        bytesSent = bytesSent + charsText;
                     }
                 }
             }
