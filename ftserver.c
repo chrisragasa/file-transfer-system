@@ -24,6 +24,7 @@ int setupSocket(int portNumber, char *hostname);
 int getCommand(char *commandBuffer);
 int getDirectory(char *directoryStr);
 int isValidFile(char *fileStr);
+void readFile(char *fileName, char *string);
 
 int main(int argc, char *argv[])
 {
@@ -158,7 +159,23 @@ int main(int argc, char *argv[])
                 // Check if the file exists
                 if (isValidFile(fileBuffer))
                 {
-                    printf("IS VALID FILE");
+                    // Copy file contents into a string
+                    readFile(fileBuffer, fileStr);
+                    // Send the file to the client
+                    // Send to the client
+                    bytesSent = 0; // Keep track of the bytes sent
+                    charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
+                    bytesSent = bytesSent + charsText; // Keep track of the bytes sent
+                    if (charsText < 0)
+                    {
+                        error("ERROR: server can't send encryption to socket", 1);
+                    }
+                    // While the total amount of bytes sent does not equal the size of the message
+                    while (bytesSent < LARGE_SIZE - 1)
+                    {
+                        charsText = send(datasockFD, &fileStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+                        bytesSent = bytesSent + charsText;                                            // Keep track of the bytes sent
+                    }
                 }
                 else
                 {
@@ -286,4 +303,26 @@ int getCommand(char *commandBuffer)
         return 2;
     }
     return -1;
+}
+
+void readFile(char *fileName, char *string)
+{
+    char *buffer = 0;
+    long length;
+    FILE *f = fopen(fileName, "rb");
+
+    if (f)
+    {
+        fseek(f, 0, SEEK_END);
+        length = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        buffer = malloc(length);
+        if (buffer)
+        {
+            fread(buffer, 1, length, f);
+        }
+        fclose(f);
+    }
+
+    strcpy(string, buffer);
 }

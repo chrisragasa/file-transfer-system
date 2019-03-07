@@ -5,6 +5,7 @@ Program Description: ftclient.py is the client side of the file transfer system.
 '''
 import socket
 import sys
+import os
 
 MAX_LENGTH = 1024
 CHUNK_SIZE = 1024
@@ -135,21 +136,24 @@ def main():
         # add chunk to your already collected data
         data += datachunk.decode('UTF-8')
     data = data.rstrip('\x00')
-    print(data)
-    '''
-    # line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
-    # format from buffer to integer
-    dir_lines_count = int(conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00'))
-    print("lines count: " + str(dir_lines_count))
-    line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
-    print(line)
 
-    count = 0
-    while count < dir_lines_count:
-        line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
-        print(line)
-        count += 1
-    '''
+    # print the remote directory
+    if command == "-l":
+        print(data)
+    # transfer the file from remote directory to local
+    elif command == "-g":
+        if os.path.exists(filename):
+            ext = 1
+            while os.path.exists(filename + str(ext)):
+                ext += 1
+            fh = open(filename + str(ext), "w")
+            fh.write(data)
+            fh.close()
+        else:
+            fh = open(filename, "w")
+            fh.write(data)
+            fh.close()
+
     conn.close()
 
 
