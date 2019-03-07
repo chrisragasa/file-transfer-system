@@ -46,13 +46,13 @@ $ python3 ftclient.py <server_host> <server_port> <command> <filename> <data_por
 
 ## Example Program Usage
 
-### Start the server on flip1.engr.oregonstate.edu:3555
+#### Start the server on flip1.engr.oregonstate.edu:3555
 
 ```bash
 flip1 ~/file-transfer-system $ ./ftserver 3555
 ```
 
-### Using the client in a different directory on flip2.engr.oregonstate.edu, list the server's directory
+#### Using the client in a different directory on flip2.engr.oregonstate.edu, list the server's directory
 
 ```bash
 flip2 ~/test-dir $ python3 ftclient.py flip1.engr.oregonstate.edu 3555 -l 8555
@@ -69,7 +69,7 @@ textfile-small
 textfile-large
 ```
 
-### Using the client in a different directory on flip2.engr.oregonstate.edu, get `textfile-large` from the server's directory
+#### Using the client in a different directory on flip2.engr.oregonstate.edu, get textfile-large from the server's directory
 
 ```bash
 flip2 ~/test-dir $ ls
