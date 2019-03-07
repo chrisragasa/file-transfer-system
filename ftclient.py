@@ -163,9 +163,9 @@ def main():
     if command == "-l":
         print(data)
 
-    # transfer the file from remote directory to local
+    # transfer the file from remote directory to local directory
     elif command == "-g":
-        # validate file exists on server side
+        # check if file does not exist in remote directory
         if data == "File not found.":
             print(data)
         else:

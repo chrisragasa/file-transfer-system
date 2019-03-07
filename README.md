@@ -49,3 +49,4 @@ $ python3 ftclient.py <server_host> <server_port> <command> <filename> <data_por
 - http://docs.python.org/release/2.6.5/library/internet.html
 - https://docs.python.org/3/library/socket.html
 - https://beej.us/guide/bgnet/html/multi/index.html
+- https://stackoverflow.com/questions/53285659/how-can-i-wait-until-i-receive-data-using-a-python-socket

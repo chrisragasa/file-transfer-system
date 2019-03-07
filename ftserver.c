@@ -25,6 +25,8 @@ int getCommand(char *commandBuffer);
 int getDirectory(char *directoryStr);
 int isValidFile(char *fileStr);
 void readFile(char *fileName, char *string);
+void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, int sz, int sock);
+void sendData(int sock, char *data, int sz);
 
 int main(int argc, char *argv[])
 {
@@ -36,13 +38,6 @@ int main(int argc, char *argv[])
     char fileBuffer[SIZE];
     char dirStr[LARGE_SIZE];
     char fileStr[LARGE_SIZE];
-
-    char *confirm = "OK";
-
-    memset(commandBuffer, '\0', SIZE);
-    memset(portBuffer, '\0', SIZE);
-    memset(ipBuffer, '\0', SIZE);
-    memset(fileBuffer, '\0', SIZE);
     memset(dirStr, '\0', LARGE_SIZE);
     memset(fileStr, '\0', LARGE_SIZE);
 
@@ -80,117 +75,31 @@ int main(int argc, char *argv[])
         }
         else if (pid == 0)
         {
-
-            //Receive the command
-            memset(commandBuffer, '\0', SIZE);
-            bytesRecv = recv(newsocketFD, commandBuffer, SIZE - 1, 0);
-            if (bytesRecv < 0)
-            {
-                error("error: server can't read from the socket", 1);
-            }
-            send(newsocketFD, confirm, strlen(confirm), 0);
-
-            //Receive the port number for data transfer
-            memset(portBuffer, '\0', SIZE);
-            bytesRecv = recv(newsocketFD, portBuffer, SIZE - 1, 0);
-            if (bytesRecv < 0)
-            {
-                error("error: server can't read from the socket", 1);
-            }
-            send(newsocketFD, confirm, strlen(confirm), 0);
-
-            //Receive the client's IP address
-            memset(ipBuffer, '\0', SIZE);
-            bytesRecv = recv(newsocketFD, ipBuffer, SIZE - 1, 0);
-            if (bytesRecv < 0)
-            {
-                error("error: server can't read from the socket", 1);
-            }
-            send(newsocketFD, confirm, strlen(confirm), 0);
-
-            //Receive the file name
-            if (getCommand(commandBuffer) == 2)
-            {
-                memset(fileBuffer, '\0', SIZE);
-                bytesRecv = recv(newsocketFD, fileBuffer, SIZE - 1, 0);
-                if (bytesRecv < 0)
-                {
-                    error("error: server can't read from the socket", 1);
-                }
-                send(newsocketFD, confirm, strlen(confirm), 0);
-            }
-
-            printf("Data received from client...\n");
-            printf("    IP buffer: %s\n", ipBuffer);
-            printf("    port buffer: %d\n", atoi(portBuffer));
-            printf("    file buffer: %s\n", fileBuffer);
-            printf("    command buffer: %s\n", commandBuffer);
-            printf("    command code: %d\n", getCommand(commandBuffer));
+            // Get client command line arguments
+            getClientCommandLine(commandBuffer, portBuffer, ipBuffer, fileBuffer, SIZE, newsocketFD);
 
             // Setup data socket
             datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
-            //send(datasockFD, test, strlen(test), 0);
 
+            // Send directory contents to client
             if (getCommand(commandBuffer) == 1)
             {
-                // Store directory contents in buffer
                 getDirectory(dirStr);
-
-                // Send to the client
-                bytesSent = 0; // Keep track of the bytes sent
-                charsText = send(datasockFD, dirStr, LARGE_SIZE - 1, 0);
-                bytesSent = bytesSent + charsText; // Keep track of the bytes sent
-                if (charsText < 0)
-                {
-                    error("error: server can't send encryption to socket", 1);
-                }
-                // While the total amount of bytes sent does not equal the size of the message
-                while (bytesSent < LARGE_SIZE - 1)
-                {
-                    charsText = send(datasockFD, &dirStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                    bytesSent = bytesSent + charsText;                                                 // Keep track of the bytes sent
-                }
+                sendData(datasockFD, dirStr, LARGE_SIZE);
             }
             else if (getCommand(commandBuffer) == 2)
             {
-                // Check if the file exists
+                // If file exists, send file to client
                 if (isValidFile(fileBuffer))
                 {
-                    // Read file contents into a string
                     readFile(fileBuffer, fileStr);
-
-                    // Send to the client
-                    bytesSent = 0;
-                    charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
-                    bytesSent = bytesSent + charsText;
-                    if (charsText < 0)
-                    {
-                        error("error: server can't send encryption to socket", 1);
-                    }
-                    while (bytesSent < LARGE_SIZE - 1)
-                    {
-                        charsText = send(datasockFD, &fileStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                        bytesSent = bytesSent + charsText;
-                    }
+                    sendData(datasockFD, fileStr, LARGE_SIZE);
                 }
                 // Otherwise, send file not found error to client
                 else
                 {
                     strcpy(fileStr, "File not found.");
-
-                    // Send to the client
-                    bytesSent = 0;
-                    charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
-                    bytesSent = bytesSent + charsText;
-                    if (charsText < 0)
-                    {
-                        error("error: server can't send encryption to socket", 1);
-                    }
-                    while (bytesSent < LARGE_SIZE - 1)
-                    {
-                        charsText = send(datasockFD, &fileStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                        bytesSent = bytesSent + charsText;
-                    }
+                    sendData(datasockFD, fileStr, LARGE_SIZE);
                 }
             }
 
@@ -377,4 +286,82 @@ void readFile(char *fileName, char *string)
     }
 
     strcpy(string, buffer);
+}
+
+/*
+ * Function: getClientCommandLine
+ * ---------------------------- 
+ *   Reads the arguments of command line from client
+ *
+ *   fileName: file name
+ *   string: string where the file contents will be stored  
+ *
+ *   post-conditions: the contents of the file will be copied into string
+ */
+void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, int sz, int sock)
+{
+    char *confirm = "OK";
+    int bytesRecv;
+
+    //Receive the command
+    memset(cBuff, '\0', sz);
+    bytesRecv = recv(sock, cBuff, sz - 1, 0);
+    if (bytesRecv < 0)
+    {
+        error("error: server can't read from the socket", 1);
+    }
+    send(sock, confirm, strlen(confirm), 0);
+
+    //Receive the port number for data transfer
+    memset(pBuff, '\0', sz);
+    bytesRecv = recv(sock, pBuff, sz - 1, 0);
+    if (bytesRecv < 0)
+    {
+        error("error: server can't read from the socket", 1);
+    }
+    send(sock, confirm, strlen(confirm), 0);
+
+    //Receive the client's IP address
+    memset(ipBuff, '\0', sz);
+    bytesRecv = recv(sock, ipBuff, sz - 1, 0);
+    if (bytesRecv < 0)
+    {
+        error("error: server can't read from the socket", 1);
+    }
+    send(sock, confirm, strlen(confirm), 0);
+
+    //Receive the file name
+    if (getCommand(cBuff) == 2)
+    {
+        memset(fBuff, '\0', sz);
+        bytesRecv = recv(sock, fBuff, sz - 1, 0);
+        if (bytesRecv < 0)
+        {
+            error("error: server can't read from the socket", 1);
+        }
+        send(sock, confirm, strlen(confirm), 0);
+    }
+    printf("Data received from client...\n");
+    printf("    IP buffer: %s\n", cBuff);
+    printf("    port buffer: %d\n", atoi(pBuff));
+    printf("    file buffer: %s\n", fBuff);
+    printf("    command buffer: %s\n", cBuff);
+    printf("    command code: %d\n", getCommand(cBuff));
+}
+
+void sendData(int sock, char *data, int sz)
+{
+    int bytesSent, charsText;
+    bytesSent = 0;
+    charsText = send(sock, data, sz - 1, 0);
+    bytesSent = bytesSent + charsText;
+    if (charsText < 0)
+    {
+        error("error: server can't send encryption to socket", 1);
+    }
+    while (bytesSent < sz - 1)
+    {
+        charsText = send(sock, &data[bytesSent], sz - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+        bytesSent = bytesSent + charsText;
+    }
 }
