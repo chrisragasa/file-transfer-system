@@ -34,22 +34,20 @@ int main(int argc, char *argv[])
     char portBuffer[SIZE];
     char ipBuffer[SIZE];
     char fileBuffer[SIZE];
-
     char dirStr[LARGE_SIZE];
     char fileStr[LARGE_SIZE];
 
     char *confirm = "OK";
 
-    memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
-    memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
-    memset(ipBuffer, '\0', SIZE);      // Fill arrays with null terminators and clear garbage
-    memset(fileBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
-    memset(dirStr, '\0', LARGE_SIZE);  // Fill arrays with null terminators and clear garbage
-    memset(fileStr, '\0', LARGE_SIZE); // Fill arrays with null terminators and clear garbage
+    memset(commandBuffer, '\0', SIZE);
+    memset(portBuffer, '\0', SIZE);
+    memset(ipBuffer, '\0', SIZE);
+    memset(fileBuffer, '\0', SIZE);
+    memset(dirStr, '\0', LARGE_SIZE);
+    memset(fileStr, '\0', LARGE_SIZE);
 
-    /* Check for the correct number of arguments */
     if (argc < 2)
-        error("error: Incorrect number of arguments.\nSYNTAX: otp_enc_d port", 1);
+        error("error: Incorrect number of arguments.\nSYNTAX: ftserver <port number>", 1);
 
     //Port and Socket Setup
     socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
@@ -149,8 +147,8 @@ int main(int argc, char *argv[])
                 // While the total amount of bytes sent does not equal the size of the message
                 while (bytesSent < LARGE_SIZE - 1)
                 {
-                    charsText = send(datasockFD, &dirStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
-                    bytesSent = bytesSent + charsText;                                           // Keep track of the bytes sent
+                    charsText = send(datasockFD, &dirStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+                    bytesSent = bytesSent + charsText;                                                 // Keep track of the bytes sent
                 }
             }
             else if (getCommand(commandBuffer) == 2)
@@ -190,7 +188,7 @@ int main(int argc, char *argv[])
                     }
                     while (bytesSent < LARGE_SIZE - 1)
                     {
-                        charsText = send(datasockFD, &fileStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+                        charsText = send(datasockFD, &fileStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
                         bytesSent = bytesSent + charsText;
                     }
                 }
