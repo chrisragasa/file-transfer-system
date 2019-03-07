@@ -3,6 +3,7 @@ Author: Christopher Ragasa
 Date: Mar 5, 2019
 Program Description: ftclient.py is the client side of the file transfer system.
 '''
+
 import socket
 import sys
 import os
@@ -16,8 +17,8 @@ def error(msg, value):
    Args:
        msg: error message
        value: exit value
-   Returns:
-       N/A
+   Post-conditions:
+       Error message is printed and program exits
     """
     print(msg)
     exit(value)
@@ -45,10 +46,10 @@ def send_msg(sock, message):
    Args:
         sock: socket used to transmit the message
         message: message to be transmitted
+   Post-conditions:
+        Message is sent to the socket 
     """
     sock.send(message.encode('utf-8'))
-
-# def send_command(sock, command, data_port):
 
 
 def get_IP():
@@ -65,7 +66,7 @@ def get_IP():
     return hostname
 
 
-def validate_arguments(h, p, c, d):
+def validate_arguments(h, p, c, d, f):
     """Validate user arguments
    Args:
         h: hostname
@@ -73,8 +74,10 @@ def validate_arguments(h, p, c, d):
         c: command
         d: data port number
         f: filename
+    Post-conditions:
+        If user arguments are invalid, an error is thrown
     """
-    # Validate hostname
+    # validate hostname
     hostnames = ["flip1.engr.oregonstate.edu",
                  "flip2.engr.oregonstate.edu",
                  "flip3.engr.oregonstate.edu",
@@ -85,24 +88,29 @@ def validate_arguments(h, p, c, d):
     if c != '-l' and c != '-g':
         error("error: only commands '-l' and '-g' are allowed", 1)
 
-    # Validate port number
+    # validate port number
     if int(p) < 1024 or int(p) > 65535:
         error("error: use a port number within range [1024, 65535]", 1)
 
-    # Validate data port number
+    # validate data port number
     if int(d) < 1024 or int(d) > 65535:
         error("error: use a port number within range [1024, 65535]", 1)
+
+    # validate filename if command is -g
+    if c == '-g' and not f:
+        error("error: a filename must be specified when using the -g command", 1)
 
 
 def main():
 
-    # Validate correct usage
+    # validate correct number of arguments
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         error("error: incorrect usage\nusage: python3 ftclient.py <server_host> <server_port> <command> <filename> <data_port>", 1)
 
     host = sys.argv[1]
     port = int(sys.argv[2])
     command = sys.argv[3]
+    filename = ""
 
     if len(sys.argv) == 5:
         data_port = sys.argv[4]
@@ -111,9 +119,9 @@ def main():
         filename = sys.argv[4]
         data_port = sys.argv[5]
 
-    validate_arguments(host, port, command, data_port)
+    validate_arguments(host, port, command, data_port, filename)
 
-    # Connect to the server socket
+    # connect to the server socket
     sock = connect(host, port)
 
     # send the command
@@ -169,6 +177,7 @@ def main():
         if data == "File not found.":
             print(data)
         else:
+            # handle naming if there are duplicate files on client side
             if os.path.exists(filename):
                 ext = 1
                 while os.path.exists(filename + str(ext)):
@@ -183,6 +192,7 @@ def main():
             print("Transfer complete.")
 
     conn.close()
+    sock.close()
 
 
 if __name__ == "__main__":

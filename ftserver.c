@@ -19,56 +19,45 @@ Program Description: ftserver.c is the server side of the file transfer system
 #define LARGE_SIZE 200000
 
 void error(const char *msg, int exitVal);
+void readFile(char *fileName, char *buff);
+void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, int sz, int sock);
+void sendData(int sock, char *data, int sz);
+void validateArgs(int argc, char *argv[]);
 int setupSocket(int portNumber, char *hostname);
-
 int getCommand(char *commandBuffer);
 int getDirectory(char *directoryStr);
 int isValidFile(char *fileStr);
-void readFile(char *fileName, char *string);
-void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, int sz, int sock);
-void sendData(int sock, char *data, int sz);
+int initSocket(int port);
 
 int main(int argc, char *argv[])
 {
-    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv, charsText, lines;
-    struct sockaddr_in serverAddress;
+    int socketFD, newsocketFD, datasockFD, pid;
     char commandBuffer[SIZE];
     char portBuffer[SIZE];
     char ipBuffer[SIZE];
     char fileBuffer[SIZE];
     char dirStr[LARGE_SIZE];
     char fileStr[LARGE_SIZE];
-    memset(dirStr, '\0', LARGE_SIZE);
-    memset(fileStr, '\0', LARGE_SIZE);
 
-    if (argc < 2)
-        error("error: Incorrect number of arguments.\nSYNTAX: ftserver <port number>", 1);
+    // Validate correct usage (user arguments)
+    validateArgs(argc, argv);
 
-    //Port and Socket Setup
-    socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
-    portNumber = atoi(argv[1]);                 // Get the port number
-    if (socketFD < 0)
-    { // Check for socket creation error
-        error("error: server couldn't open the socket", 1);
-    }
-    memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
-    serverAddress.sin_family = AF_INET;                          // Create a network-capable socket
-    serverAddress.sin_addr.s_addr = INADDR_ANY;                  // Any address is allowed for connection to this process
-    serverAddress.sin_port = htons(portNumber);                  // Store the port number
-    if (bind(socketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
-    { // Check for bind error
-        error("error: server couldn't bind", 0);
-    }
-    listen(socketFD, 5); // 5 concurrent connections
+    // Socket initialization
+    socketFD = initSocket(atoi(argv[1]));
+
     // Listening Loop
+    listen(socketFD, 5);
     while (1)
     {
-        newsocketFD = accept(socketFD, NULL, NULL); // Creates a new connected socket, returns it's new file descriptor
+        // Creates a new connected socket, accept() returns it's new file descriptor
+        newsocketFD = accept(socketFD, NULL, NULL);
         if (newsocketFD < 0)
         {
             error("error: server couldn't set up socket on accept", 1);
         }
+
         pid = fork();
+
         if (pid < 0)
         {
             error("error: fork error", 1);
@@ -78,39 +67,42 @@ int main(int argc, char *argv[])
             // Get client command line arguments
             getClientCommandLine(commandBuffer, portBuffer, ipBuffer, fileBuffer, SIZE, newsocketFD);
 
-            // Setup data socket
+            // Setup data transfer socket
             datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
 
             // Send directory contents to client
             if (getCommand(commandBuffer) == 1)
             {
+                memset(dirStr, '\0', LARGE_SIZE);
                 getDirectory(dirStr);
                 sendData(datasockFD, dirStr, LARGE_SIZE);
             }
+            // Transfer file to client
             else if (getCommand(commandBuffer) == 2)
             {
                 // If file exists, send file to client
                 if (isValidFile(fileBuffer))
                 {
+                    memset(fileStr, '\0', LARGE_SIZE);
                     readFile(fileBuffer, fileStr);
                     sendData(datasockFD, fileStr, LARGE_SIZE);
                 }
                 // Otherwise, send file not found error to client
                 else
                 {
+                    memset(fileStr, '\0', LARGE_SIZE);
                     strcpy(fileStr, "File not found.");
                     sendData(datasockFD, fileStr, LARGE_SIZE);
                 }
             }
-
             close(newsocketFD);
             close(datasockFD);
             close(socketFD);
-            exit(0); // Child dies
+            exit(0);
         }
         else
         {
-            close(newsocketFD); // Parent closes the new socket
+            close(newsocketFD);
         }
     }
     return 0;
@@ -135,9 +127,9 @@ void error(const char *msg, int exitVal)
 /*
  * Function: getDirectory
  * ---------------------------- 
- *   Gets the current working directory and copies it to a string
+ *   Gets the current working directory and copies it to a buffer
  * 
- *   char: buffer/string where the directory contents will be copied to
+ *   char: buffer where directory contents will be copied to
  * 
  *   returns: number of files in the working directory
  */
@@ -166,11 +158,11 @@ int getDirectory(char *directoryStr)
 /*
  * Function: isValidFile
  * ---------------------------- 
- *   Checks if the working directory contains a file
+ *   Checks if the working directory contains the file passed as an argument
  * 
- *   fileStr: name of the file
+ *   fileStr: filename
  * 
- *   returns: 1 if the working dir contains the file, 0 otherwise
+ *   returns: 1 if the working directory contains the file, 0 otherwise
  */
 int isValidFile(char *fileStr)
 {
@@ -195,10 +187,10 @@ int isValidFile(char *fileStr)
 /*
  * Function: setupSocket
  * ---------------------------- 
- *   Setup socket for data connection
+ *   Setup socket for data connection with client
  *
- *   portNumber: port number
- *   hostname: host name   
+ *   portNumber: client port number (for data transfer)
+ *   hostname: client host name   
  *
  *   returns: socket file descriptor 
  */
@@ -223,7 +215,7 @@ int setupSocket(int portNumber, char *hostname)
     bcopy((char *)server->h_addr, (char *)&serverAddress.sin_addr.s_addr, server->h_length); // Copy serv_addr ip into server->h_addr
     serverAddress.sin_port = htons(portNumber);                                              // Store the port number
 
-    /* Connect to server */
+    // Connect to server
     if (connect(socketFD, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
     {
         error("error: connecting to socket", 1); // Connection error
@@ -237,9 +229,9 @@ int setupSocket(int portNumber, char *hostname)
  * ---------------------------- 
  *   Get the command type passed from the client
  *
- *   commandBuffer: buffer where the command is stored
+ *   commandBuffer: buffer where command is stored
  *
- *   returns: socket file descriptor 
+ *   returns: 1 if directory listing cmd, 2 if file transfer cmd, -1 otherwise
  */
 int getCommand(char *commandBuffer)
 {
@@ -259,14 +251,14 @@ int getCommand(char *commandBuffer)
 /*
  * Function: readFile
  * ---------------------------- 
- *   Reads the contents of a file into a string
+ *   Reads the contents of a file into a buffer
  *
  *   fileName: file name
- *   string: string where the file contents will be stored  
+ *   buff: buffer where file contents will be stored  
  *
- *   post-conditions: the contents of the file will be copied into string
+ *   post-conditions: the contents of the file will be copied into buffer
  */
-void readFile(char *fileName, char *string)
+void readFile(char *fileName, char *buff)
 {
     char *buffer = 0;
     long length;
@@ -285,18 +277,22 @@ void readFile(char *fileName, char *string)
         fclose(f);
     }
 
-    strcpy(string, buffer);
+    strcpy(buff, buffer);
 }
 
 /*
  * Function: getClientCommandLine
  * ---------------------------- 
- *   Reads the arguments of command line from client
+ *   Reads the arguments from the client command line
  *
- *   fileName: file name
- *   string: string where the file contents will be stored  
+ *   cBuff: command buffer
+ *   pBuff: port number (for data transfer) buffer
+ *   ipBuff: IP address buffer
+ *   fBuff: filename buffer
+ *   sz: buffer size
+ *   sock: socket file descriptor
  *
- *   post-conditions: the contents of the file will be copied into string
+ *   post-conditions: client command line arguments are stored into their server side buffers
  */
 void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, int sz, int sock)
 {
@@ -349,6 +345,17 @@ void getClientCommandLine(char *cBuff, char *pBuff, char *ipBuff, char *fBuff, i
     printf("    command code: %d\n", getCommand(cBuff));
 }
 
+/*
+ * Function: sendData
+ * ---------------------------- 
+ *   Send data from server to client
+ *
+ *   sock: socket file descriptor
+ *   data: buffer where data to be transfer is stored
+ *   sz: buffer size
+ *
+ *   post-conditions: data is sent from server to client
+ */
 void sendData(int sock, char *data, int sz)
 {
     int bytesSent, charsText;
@@ -364,4 +371,53 @@ void sendData(int sock, char *data, int sz)
         charsText = send(sock, &data[bytesSent], sz - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
         bytesSent = bytesSent + charsText;
     }
+    printf("Data sent to client...\n");
+}
+
+/*
+ * Function: initSocket
+ * ---------------------------- 
+ *   Create server socket
+ *
+ *   port: port number (defined on server side) 
+ *
+ *   returns: socket file descriptor
+ */
+int initSocket(int port)
+{
+    int s;
+    struct sockaddr_in serverAddress;
+    s = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+    if (s < 0)
+    { // Check for socket creation error
+        error("error: server couldn't open the socket", 1);
+    }
+    memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+    serverAddress.sin_family = AF_INET;                          // Create a network-capable socket
+    serverAddress.sin_addr.s_addr = INADDR_ANY;                  // Any address is allowed for connection to this process
+    serverAddress.sin_port = htons(port);                        // Store the port number
+    if (bind(s, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+    { // Check for bind error
+        error("error: server couldn't bind", 0);
+    }
+    return s;
+}
+
+/*
+ * Function: validateArgs
+ * ---------------------------- 
+ *   Validate correct program usage
+ *
+ *   argc: C command line arguments (number of arguments passed)
+ *   argv: C command line arguments (pointer array which points to each argument passed to program)
+ * 
+ *   post-conditions: error thrown and program exits if usage is invalid
+ */
+void validateArgs(int argc, char *argv[])
+{
+    if (argc != 2)
+        error("error: incorrect usage\nusage: ftserver <port number>", 1);
+
+    if (atoi(argv[1]) < 1024 || atoi(argv[1]) > 65535)
+        error("error: use a port number within range [1024, 65535]", 1);
 }
