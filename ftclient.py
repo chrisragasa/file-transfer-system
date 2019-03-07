@@ -119,8 +119,20 @@ def main():
     # accept() returns conn (socket object) and addr (address bound to socket on other end of conn)
     conn, addr = s.accept()
     print("Established connection with " + str(addr) + "...")
-    testing = conn.recv(MAX_LENGTH)
-    print(testing)
+    '''
+    # line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
+    # format from buffer to integer
+    dir_lines_count = int(conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00'))
+    print("lines count: " + str(dir_lines_count))
+    line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
+    print(line)
+
+    count = 0
+    while count < dir_lines_count:
+        line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
+        print(line)
+        count += 1
+    '''
     conn.close()
 
 

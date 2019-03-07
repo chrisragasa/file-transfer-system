@@ -18,22 +18,27 @@ Program Description: ftserver.c is the server side of the file transfer system
 #define SIZE 75000
 
 void error(const char *msg, int exitVal);
-void getDirectory();
 int setupSocket(int portNumber, char *hostname);
+void sendDirectory(int socketFD);
+
+char **createDirArray(int size);
+int getDirectory(char **directoryArray);
 
 int main(int argc, char *argv[])
 {
-    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv;
+    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv, lines;
     struct sockaddr_in serverAddress;
     char commandBuffer[SIZE];
     char portBuffer[SIZE];
     char ipBuffer[SIZE];
+    char dirLinesBuffer[SIZE];
     char *confirm = "OK";
     char *test = "TEST";
 
-    memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
-    memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
-    memset(ipBuffer, '\0', SIZE);      // Fill arrays with null terminators and clear garbage
+    memset(commandBuffer, '\0', SIZE);  // Fill arrays with null terminators and clear garbage
+    memset(portBuffer, '\0', SIZE);     // Fill arrays with null terminators and clear garbage
+    memset(ipBuffer, '\0', SIZE);       // Fill arrays with null terminators and clear garbage
+    memset(dirLinesBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
 
     /* Check for the correct number of arguments */
     if (argc < 2)
@@ -55,7 +60,6 @@ int main(int argc, char *argv[])
         error("error: server couldn't bind", 0);
     }
     listen(socketFD, 5); // 5 concurrent connections
-
     /* Listening Loop */
     while (1)
     {
@@ -105,11 +109,27 @@ int main(int argc, char *argv[])
 
             // Setup data socket
             datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
-            send(datasockFD, test, strlen(test), 0);
+            //send(datasockFD, test, strlen(test), 0);
 
-            //getDirectory();
+            // Store directory in array
+            char **dirArray = createDirArray(SIZE);
+            lines = getDirectory(dirArray);
+
+            int i = 0;
+            while (i < lines)
+            {
+                printf("%s\n", dirArray[i]);
+                i++;
+            }
+
+            /*
+            sprintf(dirLinesBuffer, "%d", getDirectory()); // Convert return value from getDirectory (int) to a string for buffer usage
+            send(datasockFD, dirLinesBuffer, sizeof(dirLinesBuffer), 0);
+            sendDirectory(datasockFD);
+            */
 
             close(newsocketFD); // Close the socket
+            close(datasockFD);  // Close the socket
             close(socketFD);    // Close the socket
             exit(0);            // Child dies
         }
@@ -118,6 +138,7 @@ int main(int argc, char *argv[])
             close(newsocketFD); // Parent closes the new socket
         }
     }
+    return 0;
 }
 
 /*
@@ -136,7 +157,7 @@ void error(const char *msg, int exitVal)
     exit(exitVal);
 }
 
-void getDirectory()
+void sendDirectory(int socketFD)
 {
     DIR *d;
     struct dirent *dir;
@@ -147,11 +168,34 @@ void getDirectory()
         {
             if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
             {
-                printf("%s\n", dir->d_name);
+                send(socketFD, dir->d_name, strlen(dir->d_name), 0);
+                send(socketFD, "\n", 1, 0);
+                //printf("%s\n", dir->d_name);
             }
         }
         closedir(d);
     }
+}
+
+int getDirectory(char **directoryArray)
+{
+    int lines = 0;
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
+            {
+                strcpy(directoryArray[lines], dir->d_name);
+                lines++;
+            }
+        }
+        closedir(d);
+    }
+    return lines;
 }
 
 int setupSocket(int portNumber, char *hostname)
@@ -182,4 +226,16 @@ int setupSocket(int portNumber, char *hostname)
     }
 
     return socketFD;
+}
+
+char **createDirArray(int size)
+{
+    char **array = malloc(size * sizeof(char *));
+    int i;
+    for (i = 0; i < size; i++)
+    {
+        array[i] = malloc(100 * sizeof(char));
+        memset(array[i], '\0', sizeof(array[i]));
+    }
+    return array;
 }
