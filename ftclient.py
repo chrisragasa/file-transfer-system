@@ -7,6 +7,7 @@ import socket
 import sys
 
 MAX_LENGTH = 1024
+CHUNK_SIZE = 1024
 
 
 def error(msg, value):
@@ -111,6 +112,12 @@ def main():
     response = sock.recv(MAX_LENGTH)
     print(response)
 
+    # Send the filename
+    if command == "-g" and filename:
+        send_msg(sock, filename)
+        response = sock.recv(MAX_LENGTH)
+        print(response)
+
     # Create socket (SOCK_STREAM means a TCP socket)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("", int(data_port)))
@@ -119,6 +126,16 @@ def main():
     # accept() returns conn (socket object) and addr (address bound to socket on other end of conn)
     conn, addr = s.accept()
     print("Established connection with " + str(addr) + "...")
+    data = ""
+    while True:
+        # reads data chunk from the socket in batches using method recv() until it returns an empty string
+        datachunk = conn.recv(CHUNK_SIZE)
+        if not datachunk:
+            break  # no more data coming in, so break out of the while loop
+        # add chunk to your already collected data
+        data += datachunk.decode('UTF-8')
+    data = data.rstrip('\x00')
+    print(data)
     '''
     # line = conn.recv(MAX_LENGTH).decode('UTF-8').rstrip('\x00')
     # format from buffer to integer

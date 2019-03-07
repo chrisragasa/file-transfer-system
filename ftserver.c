@@ -16,29 +16,36 @@ Program Description: ftserver.c is the server side of the file transfer system
 #include <dirent.h>
 
 #define SIZE 75000
+#define LARGE_SIZE 200000
 
 void error(const char *msg, int exitVal);
 int setupSocket(int portNumber, char *hostname);
-void sendDirectory(int socketFD);
 
-char **createDirArray(int size);
-int getDirectory(char **directoryArray);
+int getCommand(char *commandBuffer);
+int getDirectory(char *directoryStr);
+int isValidFile(char *fileStr);
 
 int main(int argc, char *argv[])
 {
-    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv, lines;
+    int portNumber, dataPort, socketFD, newsocketFD, datasockFD, bytesSent, pid, bytesRecv, charsText, lines;
     struct sockaddr_in serverAddress;
     char commandBuffer[SIZE];
     char portBuffer[SIZE];
     char ipBuffer[SIZE];
-    char dirLinesBuffer[SIZE];
+    char fileBuffer[SIZE];
+
+    char dirStr[LARGE_SIZE];
+    char fileStr[LARGE_SIZE];
+
     char *confirm = "OK";
     char *test = "TEST";
 
-    memset(commandBuffer, '\0', SIZE);  // Fill arrays with null terminators and clear garbage
-    memset(portBuffer, '\0', SIZE);     // Fill arrays with null terminators and clear garbage
-    memset(ipBuffer, '\0', SIZE);       // Fill arrays with null terminators and clear garbage
-    memset(dirLinesBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
+    memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
+    memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
+    memset(ipBuffer, '\0', SIZE);      // Fill arrays with null terminators and clear garbage
+    memset(fileBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
+    memset(dirStr, '\0', LARGE_SIZE);  // Fill arrays with null terminators and clear garbage
+    memset(fileStr, '\0', LARGE_SIZE); // Fill arrays with null terminators and clear garbage
 
     /* Check for the correct number of arguments */
     if (argc < 2)
@@ -60,7 +67,7 @@ int main(int argc, char *argv[])
         error("error: server couldn't bind", 0);
     }
     listen(socketFD, 5); // 5 concurrent connections
-    /* Listening Loop */
+    // Listening Loop
     while (1)
     {
         newsocketFD = accept(socketFD, NULL, NULL); // Creates a new connected socket, returns it's new file descriptor
@@ -103,23 +110,60 @@ int main(int argc, char *argv[])
             }
             send(newsocketFD, confirm, strlen(confirm), 0);
 
-            printf("%s\n", commandBuffer);
-            printf("%d\n", atoi(portBuffer));
-            printf("%s\n", ipBuffer);
+            //Receive the file name
+            if (getCommand(commandBuffer) == 2)
+            {
+                memset(fileBuffer, '\0', SIZE);
+                bytesRecv = recv(newsocketFD, fileBuffer, SIZE - 1, 0);
+                if (bytesRecv < 0)
+                {
+                    error("error: server can't read from the socket", 1);
+                }
+                send(newsocketFD, confirm, strlen(confirm), 0);
+            }
+
+            printf("command buffer:%s\n", commandBuffer);
+            printf("port buffer:%d\n", atoi(portBuffer));
+            printf("ip buffer:%s\n", ipBuffer);
+            printf("file buffer:%s\n", fileBuffer);
+
+            printf("command:%d\n", getCommand(commandBuffer));
 
             // Setup data socket
             datasockFD = setupSocket(atoi(portBuffer), ipBuffer);
             //send(datasockFD, test, strlen(test), 0);
 
-            // Store directory in array
-            char **dirArray = createDirArray(SIZE);
-            lines = getDirectory(dirArray);
-
-            int i = 0;
-            while (i < lines)
+            if (getCommand(commandBuffer) == 1)
             {
-                printf("%s\n", dirArray[i]);
-                i++;
+                // Store directory contents in buffer
+                getDirectory(dirStr);
+
+                // Send to the client
+                bytesSent = 0; // Keep track of the bytes sent
+                charsText = send(datasockFD, dirStr, LARGE_SIZE - 1, 0);
+                bytesSent = bytesSent + charsText; // Keep track of the bytes sent
+                if (charsText < 0)
+                {
+                    error("ERROR: server can't send encryption to socket", 1);
+                }
+                // While the total amount of bytes sent does not equal the size of the message
+                while (bytesSent < LARGE_SIZE - 1)
+                {
+                    charsText = send(datasockFD, &dirStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+                    bytesSent = bytesSent + charsText;                                           // Keep track of the bytes sent
+                }
+            }
+            else if (getCommand(commandBuffer) == 2)
+            {
+                // Check if the file exists
+                if (isValidFile(fileBuffer))
+                {
+                    printf("IS VALID FILE");
+                }
+                else
+                {
+                    printf("IS NOT VALID FILE");
+                }
             }
 
             /*
@@ -157,27 +201,7 @@ void error(const char *msg, int exitVal)
     exit(exitVal);
 }
 
-void sendDirectory(int socketFD)
-{
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(".");
-    if (d)
-    {
-        while ((dir = readdir(d)) != NULL)
-        {
-            if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
-            {
-                send(socketFD, dir->d_name, strlen(dir->d_name), 0);
-                send(socketFD, "\n", 1, 0);
-                //printf("%s\n", dir->d_name);
-            }
-        }
-        closedir(d);
-    }
-}
-
-int getDirectory(char **directoryArray)
+int getDirectory(char *directoryStr)
 {
     int lines = 0;
     DIR *d;
@@ -189,13 +213,34 @@ int getDirectory(char **directoryArray)
         {
             if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
             {
-                strcpy(directoryArray[lines], dir->d_name);
+                strcat(directoryStr, dir->d_name);
+                strcat(directoryStr, "\n");
                 lines++;
             }
         }
         closedir(d);
     }
     return lines;
+}
+
+int isValidFile(char *fileStr)
+{
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (dir->d_type == DT_REG || dir->d_type == DT_DIR) // If the directory is a regular file or another directory
+            {
+                if (strcmp(fileStr, dir->d_name) == 0)
+                    return 1;
+            }
+        }
+        closedir(d);
+    }
+    return 0;
 }
 
 int setupSocket(int portNumber, char *hostname)
@@ -228,14 +273,17 @@ int setupSocket(int portNumber, char *hostname)
     return socketFD;
 }
 
-char **createDirArray(int size)
+int getCommand(char *commandBuffer)
 {
-    char **array = malloc(size * sizeof(char *));
-    int i;
-    for (i = 0; i < size; i++)
+    // Return 1 if require listing
+    if (strcmp("-l", commandBuffer) == 0)
     {
-        array[i] = malloc(100 * sizeof(char));
-        memset(array[i], '\0', sizeof(array[i]));
+        return 1;
     }
-    return array;
+    // Return 2 if require file transfer
+    if (strcmp("-g", commandBuffer) == 0)
+    {
+        return 2;
+    }
+    return -1;
 }
