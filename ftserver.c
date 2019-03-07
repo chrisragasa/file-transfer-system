@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     char fileStr[LARGE_SIZE];
 
     char *confirm = "OK";
-    char *test = "TEST";
+    char *invalidFile = "Invalid File";
 
     memset(commandBuffer, '\0', SIZE); // Fill arrays with null terminators and clear garbage
     memset(portBuffer, '\0', SIZE);    // Fill arrays with null terminators and clear garbage
@@ -173,13 +173,28 @@ int main(int argc, char *argv[])
                     // While the total amount of bytes sent does not equal the size of the message
                     while (bytesSent < LARGE_SIZE - 1)
                     {
+                        charsText = send(datasockFD, &fileStr[bytesSent], LARGE_SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
+                        bytesSent = bytesSent + charsText;                                                  // Keep track of the bytes sent
+                    }
+                }
+                // Otherwise, send error to client
+                else
+                {
+                    strcpy(fileStr, "File not found.");
+                    // Send to the client
+                    bytesSent = 0; // Keep track of the bytes sent
+                    charsText = send(datasockFD, fileStr, LARGE_SIZE - 1, 0);
+                    bytesSent = bytesSent + charsText; // Keep track of the bytes sent
+                    if (charsText < 0)
+                    {
+                        error("ERROR: server can't send encryption to socket", 1);
+                    }
+                    // While the total amount of bytes sent does not equal the size of the message
+                    while (bytesSent < LARGE_SIZE - 1)
+                    {
                         charsText = send(datasockFD, &fileStr[bytesSent], SIZE - (bytesSent - 1), 0); // Send the bytes that haven't been sent yet
                         bytesSent = bytesSent + charsText;                                            // Keep track of the bytes sent
                     }
-                }
-                else
-                {
-                    printf("IS NOT VALID FILE");
                 }
             }
 

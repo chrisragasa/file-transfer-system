@@ -48,23 +48,13 @@ def send_msg(sock, message):
     """
     sock.send(message.encode('utf-8'))
 
-
-def is_valid_command(command):
-    """Establish connection with the server
-   Args:
-        command: command passed by the user as an argument
-   Returns:
-        True if valid, False otherwise
-    """
-    return command == "-g" or command == "-l"
-
-
 # def send_command(sock, command, data_port):
+
 
 def get_IP():
     """Get the local IP address
-   Args:
-        Local IP address
+   Returns:
+        local IP address
    Resources:
     https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
     """
@@ -75,7 +65,37 @@ def get_IP():
     return hostname
 
 
+def validate_arguments(h, p, c, d):
+    """Validate user arguments
+   Args:
+        h: hostname
+        p: port number
+        c: command
+        d: data port number
+        f: filename
+    """
+    # Validate hostname
+    hostnames = ["flip1.engr.oregonstate.edu",
+                 "flip2.engr.oregonstate.edu",
+                 "flip3.engr.oregonstate.edu",
+                 "localhost"]
+    if h not in hostnames:
+        error("error: invalid hostname - an OSU flip server must be used", 1)
+
+    if c != '-l' and c != '-g':
+        error("error: only commands '-l' and '-g' are allowed", 1)
+
+    # Validate port number
+    if int(p) < 1024 or int(p) > 65535:
+        error("error: use a port number within range [1024, 65535]", 1)
+
+    # Validate data port number
+    if int(d) < 1024 or int(d) > 65535:
+        error("error: use a port number within range [1024, 65535]", 1)
+
+
 def main():
+
     # Validate correct usage
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         error("error: incorrect usage\nusage: python3 ftclient.py <server_host> <server_port> <command> <filename> <data_port>", 1)
@@ -91,9 +111,7 @@ def main():
         filename = sys.argv[4]
         data_port = sys.argv[5]
 
-    # Validate correct command
-    if not is_valid_command(command):
-        error("error: the only commands accepted are -g or -l", 1)
+    validate_arguments(host, port, command, data_port)
 
     # Connect to the server socket
     sock = connect(host, port)
@@ -140,19 +158,24 @@ def main():
     # print the remote directory
     if command == "-l":
         print(data)
+
     # transfer the file from remote directory to local
     elif command == "-g":
-        if os.path.exists(filename):
-            ext = 1
-            while os.path.exists(filename + str(ext)):
-                ext += 1
-            fh = open(filename + str(ext), "w")
-            fh.write(data)
-            fh.close()
+        # validate file exists on server side
+        if data == "File not found.":
+            print(data)
         else:
-            fh = open(filename, "w")
-            fh.write(data)
-            fh.close()
+            if os.path.exists(filename):
+                ext = 1
+                while os.path.exists(filename + str(ext)):
+                    ext += 1
+                fh = open(filename + str(ext), "w")
+                fh.write(data)
+                fh.close()
+            else:
+                fh = open(filename, "w")
+                fh.write(data)
+                fh.close()
 
     conn.close()
 
