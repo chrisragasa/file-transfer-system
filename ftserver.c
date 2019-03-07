@@ -183,16 +183,10 @@ int main(int argc, char *argv[])
                 }
             }
 
-            /*
-            sprintf(dirLinesBuffer, "%d", getDirectory()); // Convert return value from getDirectory (int) to a string for buffer usage
-            send(datasockFD, dirLinesBuffer, sizeof(dirLinesBuffer), 0);
-            sendDirectory(datasockFD);
-            */
-
-            close(newsocketFD); // Close the socket
-            close(datasockFD);  // Close the socket
-            close(socketFD);    // Close the socket
-            exit(0);            // Child dies
+            close(newsocketFD);
+            close(datasockFD);
+            close(socketFD);
+            exit(0); // Child dies
         }
         else
         {
@@ -206,11 +200,11 @@ int main(int argc, char *argv[])
  * Function: error
  * ---------------------------- 
  *   Utility function that prints error message and exits program with status value
- *
+ * 
  *   msg: error message to be printed
  *   exitVal: exit status value
- *
- *   post-conditions: exits the program 
+ * 
+ *   post-conditions: exits the program with status value
  */
 void error(const char *msg, int exitVal)
 {
@@ -218,6 +212,15 @@ void error(const char *msg, int exitVal)
     exit(exitVal);
 }
 
+/*
+ * Function: getDirectory
+ * ---------------------------- 
+ *   Gets the current working directory and copies it to a string
+ * 
+ *   char: buffer/string where the directory contents will be copied to
+ * 
+ *   returns: number of files in the working directory
+ */
 int getDirectory(char *directoryStr)
 {
     int lines = 0;
@@ -240,6 +243,15 @@ int getDirectory(char *directoryStr)
     return lines;
 }
 
+/*
+ * Function: isValidFile
+ * ---------------------------- 
+ *   Checks if the working directory contains a file
+ * 
+ *   fileStr: name of the file
+ * 
+ *   returns: 1 if the working dir contains the file, 0 otherwise
+ */
 int isValidFile(char *fileStr)
 {
     DIR *d;
@@ -260,6 +272,16 @@ int isValidFile(char *fileStr)
     return 0;
 }
 
+/*
+ * Function: setupSocket
+ * ---------------------------- 
+ *   Setup socket for data connection
+ *
+ *   portNumber: port number
+ *   hostname: host name   
+ *
+ *   returns: socket file descriptor 
+ */
 int setupSocket(int portNumber, char *hostname)
 {
     int socketFD;                                     // Socket file descriptor
@@ -268,14 +290,14 @@ int setupSocket(int portNumber, char *hostname)
     if (server == NULL)
         error("error: host was not found", 1);
 
-    /* Open the socket */
+    // Open the socket
     socketFD = socket(AF_INET, SOCK_STREAM, 0); // Returns a socket descriptor that we can use in later system calls. returns -1 on error.
     if (socketFD < 0)
     {
         error("error: opening socket", 1);
     }
 
-    /* Set up server address struct */
+    // Set up server address struct
     memset((char *)&serverAddress, '\0', sizeof(serverAddress));                             // Clear out the address struct
     serverAddress.sin_family = AF_INET;                                                      // Create a network-capable socket
     bcopy((char *)server->h_addr, (char *)&serverAddress.sin_addr.s_addr, server->h_length); // Copy serv_addr ip into server->h_addr
@@ -290,6 +312,15 @@ int setupSocket(int portNumber, char *hostname)
     return socketFD;
 }
 
+/*
+ * Function: getCommand
+ * ---------------------------- 
+ *   Get the command type passed from the client
+ *
+ *   commandBuffer: buffer where the command is stored
+ *
+ *   returns: socket file descriptor 
+ */
 int getCommand(char *commandBuffer)
 {
     // Return 1 if require listing
@@ -305,6 +336,16 @@ int getCommand(char *commandBuffer)
     return -1;
 }
 
+/*
+ * Function: readFile
+ * ---------------------------- 
+ *   Reads the contents of a file into a string
+ *
+ *   fileName: file name
+ *   string: string where the file contents will be stored  
+ *
+ *   post-conditions: the contents of the file will be copied into string
+ */
 void readFile(char *fileName, char *string)
 {
     char *buffer = 0;
